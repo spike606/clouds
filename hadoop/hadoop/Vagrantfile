@@ -1,0 +1,188 @@
+#!/bin/env ruby
+# encoding: utf-8
+
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+boxes = [
+{
+:name => "hadoop-master",
+:eth1 => "192.168.5.10",
+:mem => "2500",
+:cpu => "2",
+:box => "ubuntu/trusty64",
+:shells => [
+    "shells/system/copydebs.sh",
+    "shells/system/aptupdate.sh",
+   "shells/system/apt.sh",
+    "shells/system/generic.sh",
+    "shells/system/gethadoop.sh",
+    "shells/system/ssh.sh",
+    "shells/system/monitoring.sh"
+],
+:files => [
+{
+    :src => "files/resources/archives.zip",
+    :dst => "/home/vagrant/archives.zip"},  
+{
+    :src => "files/tasks",
+    :dst => "/home/vagrant"},
+{
+    :src => "files/resources/hadoop-2.6.4.tar.gz",
+    :dst => "/home/vagrant/hadoop-2.6.4.tar.gz"},
+{
+    :src => "files/hadoop/masters",
+    :dst => "/home/vagrant/etc/masters"},
+{
+    :src => "files/hadoop/slaves",
+    :dst => "/home/vagrant/etc/slaves"},
+{
+    :src => "files/hadoop/core-site.xml",
+    :dst => "/home/vagrant/etc/core-site.xml"},
+{
+    :src => "files/hadoop/hdfs-site.xml",
+    :dst => "/home/vagrant/etc/hdfs-site.xml"},
+{
+    :src => "files/hadoop/mapred-site.xml",
+    :dst => "/home/vagrant/etc/mapred-site.xml"},
+{
+    :src => "files/hadoop/yarn-site.xml",
+    :dst => "/home/vagrant/etc/yarn-site.xml"},
+{
+    :src => "files/system",
+    :dst => "/home/vagrant"},
+{
+    :src => "files/resources/monitoring.tar",
+    :dst => "/home/vagrant/monitoring.tar"}
+],
+:ports_forward => [
+{
+:guest => 50070, :host => 50070},
+{
+:guest => 4567, :host => 4567},
+{
+:guest => 8088, :host => 8089},
+{
+:guest => 9000, :host => 9000},
+{
+:name => "grafana",
+:guest => 3000, :host => 3010}
+]
+},
+{
+:name => "hadoop-slave1",
+:eth1 => "192.168.5.11",
+:mem => "2048",
+:cpu => "1",
+:box => "ubuntu/trusty64",
+:shells => [
+    "shells/system/copydebs.sh",
+    "shells/system/aptupdate.sh",
+   "shells/system/apt.sh",
+    "shells/system/generic.sh",
+    "shells/system/ssh.sh",
+    "shells/system/gethadoopslaves.sh",
+    "shells/system/monitoring.sh"
+],
+:files => [
+{
+    :src => "files/resources/archives.zip",
+    :dst => "/home/vagrant/archives.zip"},
+{
+    :src => "files/system/id_rsa",
+    :dst => "/home/vagrant/id_rsa"},
+{
+    :src => "files/system/id_rsa.pub",
+    :dst => "/home/vagrant/id_rsa.pub"},
+{
+    :src => "files/system/config",
+    :dst => "/home/vagrant/.ssh/config"},
+{
+    :src => "files/system",
+    :dst => "/home/vagrant"},
+{
+    :src => "files/resources/monitoring.tar",
+    :dst => "/home/vagrant/monitoring.tar"}
+],
+:ports_forward => [
+{
+:name => "grafana",
+:guest => 3000, :host => 3001}
+]
+},
+{
+:name => "hadoop-slave2",
+:eth1 => "192.168.5.12",
+:mem => "2048",
+:cpu => "1",
+:box => "ubuntu/trusty64",
+:shells => [
+"shells/system/copydebs.sh",
+"shells/system/aptupdate.sh",
+"shells/system/apt.sh",
+"shells/system/generic.sh",
+"shells/system/ssh.sh",
+"shells/system/gethadoopslaves.sh",
+"shells/system/monitoring.sh"
+],
+:files => [
+{
+  :src => "files/resources/archives.zip",
+  :dst => "/home/vagrant/archives.zip"},
+{
+:src => "files/system/id_rsa",
+:dst => "/home/vagrant/id_rsa"},
+{
+:src => "files/system/id_rsa.pub",
+:dst => "/home/vagrant/id_rsa.pub"},
+{
+:src => "files/system/config",
+:dst => "/home/vagrant/.ssh/config"},
+{
+:src => "files/system",
+:dst => "/home/vagrant"},
+{
+:src => "files/resources/monitoring.tar",
+:dst => "/home/vagrant/monitoring.tar"}
+],
+:ports_forward => [
+{
+:name => "grafana",
+:guest => 3000, :host => 3002}
+]
+}
+]
+
+
+Vagrant.configure(2) do |config|
+    boxes.each do |opts|
+
+        config.vm.define opts[:name] do |config|
+            config.vbguest.auto_update = false
+            config.vm.provider "virtualbox" do |v, override|
+                override.vm.box = opts[:box]
+            end
+            config.vm.hostname = opts[:name]
+            config.vm.provider "virtualbox" do |v|
+                v.customize ["modifyvm", :id, "--memory", opts[:mem]]
+                v.customize ["modifyvm", :id, "--cpus", opts[:cpu]]
+            end
+
+            config.vm.network :private_network, ip: opts[:eth1]
+
+            opts[:ports_forward].each do |item|
+                config.vm.network "forwarded_port", guest: item[:guest], host: item[:host]
+            end
+
+            opts[:files].each do |fileitem|
+                config.vm.provision :file do |file|
+                    file.source = fileitem[:src]
+                    file.destination = fileitem[:dst]
+                end
+            end
+            opts[:shells].each do |item|
+                config.vm.provision :shell, path: item
+            end
+        end
+    end
+end

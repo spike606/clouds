@@ -1,0 +1,13 @@
+#!/bin/bash
+
+echo "-------- ex1_run --------"
+
+hdfs dfs -mkdir -p /user/inputPasswordEntropy
+hdfs dfs -rm -r /user/outputPasswordEntropy
+hdfs dfs -rm -r /user/outputPasswordEntropySorted 
+
+hdfs dfs -copyFromLocal /home/vagrant/tasks/passwords.txt /user/inputPasswordEntropy
+
+hadoop jar /home/vagrant/tasks/passwordEntropy-1.0-SNAPSHOT.jar -D mapred.reduce.tasks=1 -D mapred.map.tasks=20 /user/inputPasswordEntropy/passwords.txt /user/outputPasswordEntropy /user/outputPasswordEntropySorted
+
+
