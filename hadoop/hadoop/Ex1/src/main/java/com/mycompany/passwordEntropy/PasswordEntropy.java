@@ -87,19 +87,16 @@ public class PasswordEntropy extends Configured implements Tool
     }   
 
     @Override
-    public int run(String[] args) throws Exception {
-        
-        runJobPasswordEntropy(args);
-        return runJobPasswordSort(args);
-
-    }
+    public int run(String[] args) throws Exception {        
+        return runJobPasswordEntropy(args);
+    }    
     
     private int runJobPasswordEntropy(String[] args) throws Exception{
                 // When implementing tool
         Configuration conf = this.getConf();
  
         // Create job
-        Job job = new Job(conf, "PasswordEntropy Job");
+        Job job = new Job(conf, "PasswordSort Job");
         job.setJarByClass(PasswordEntropy.class);
  
         // Setup MapReduce job
@@ -108,8 +105,12 @@ public class PasswordEntropy extends Configured implements Tool
         job.setReducerClass(ReduceEntropy.class);
  
         // Specify key / value
+        job.setMapOutputKeyClass(DoubleWritable.class);
+        job.setMapOutputValueClass(Text.class);
         job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(DoubleWritable.class);
+        job.setOutputValueClass(DoubleWritable.class);        
+ 
+        job.setSortComparatorClass(DoubleComparator.class);
         
         // Input
         FileInputFormat.addInputPath(job, new Path(args[0]));
@@ -121,53 +122,22 @@ public class PasswordEntropy extends Configured implements Tool
  
         // Execute job and return status
         return job.waitForCompletion(true) ? 0 : 1;
-    }
+    }      
+       
     
-    private int runJobPasswordSort(String[] args) throws Exception{
-                // When implementing tool
-        Configuration conf = this.getConf();
- 
-        // Create job
-        Job job = new Job(conf, "PasswordSort Job");
-        job.setJarByClass(PasswordEntropy.class);
- 
-        // Setup MapReduce job
-        // Do not specify the number of Reducer
-        job.setMapperClass(MapSort.class);
-        job.setReducerClass(ReduceSort.class);
- 
-        // Specify key / value
-      
-        job.setMapOutputKeyClass(DoubleWritable.class);
-        job.setMapOutputValueClass(Text.class);
-        job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(DoubleWritable.class);
-        
- 
-        job.setSortComparatorClass(DoubleComparator.class);
-        
-        // Input
-        FileInputFormat.addInputPath(job, new Path(args[1]));
-        job.setInputFormatClass(TextInputFormat.class);
- 
-        // Output
-        FileOutputFormat.setOutputPath(job, new Path(args[2]));
-        job.setOutputFormatClass(TextOutputFormat.class);
- 
-        // Execute job and return status
-        return job.waitForCompletion(true) ? 0 : 1;
-    }
-    
-    
-    public static class MapEntropy extends Mapper<LongWritable,Text,Text,DoubleWritable> {
-        public void map(LongWritable key, Text value,Context context) throws IOException,InterruptedException{
-        String line = value.toString();
-        StringTokenizer tokenizer = new StringTokenizer(line);
-        while (tokenizer.hasMoreTokens()) {
-            value.set(tokenizer.nextToken());
-            context.write(value, new DoubleWritable(getEntropyForPassword(value.toString())));
+    public static class MapEntropy extends Mapper<LongWritable, Text, DoubleWritable, Text> {
+        @Override
+        protected void map(LongWritable key, Text value, Context context)
+          throws java.io.IOException, InterruptedException {
+            String line = value.toString();
+            StringTokenizer tokenizer = new StringTokenizer(line);
+            while (tokenizer.hasMoreTokens()) {
+                String token = tokenizer.nextToken();
+                value.set(token);
+                context.write(new DoubleWritable(getEntropyForPassword(token)), value);
+                }
             }
-        }
+                           
         
         private static double getEntropyForPassword (String password){
             int pwlength = password.length();
@@ -179,30 +149,10 @@ public class PasswordEntropy extends Configured implements Tool
         private static double log2(double number) { 
         	return Math.log(number)/Math.log(2.0);
         }
-}
-    
-    public static class ReduceEntropy extends Reducer<Text,DoubleWritable,Text,DoubleWritable> {
-        public void reduce(Text key, Iterable<DoubleWritable> values,Context context) 
-                throws IOException,InterruptedException {
-        context.write(key, values.iterator().next());
-        }
-}
-    
-    
-    
-    public static class MapSort extends Mapper<LongWritable, Text, DoubleWritable, Text> {
-        public void map(LongWritable key, Text value, Context context)
-          throws java.io.IOException, InterruptedException {
-         String line = value.toString();
-         String[] tokens = line.split("\\t"); // This is the delimiter between
-         String keypart = tokens[0];
-         double valuePart = Double.parseDouble(tokens[1]);
-         context.write(new DoubleWritable(valuePart), new Text(keypart));
-
-        }
     }
     
-    public static class ReduceSort extends Reducer<DoubleWritable, Text, Text, DoubleWritable> {
+    public static class ReduceEntropy extends Reducer<DoubleWritable, Text, Text, DoubleWritable> {
+        @Override
         public void reduce(DoubleWritable key, Iterable<Text> list, Context context)
           throws java.io.IOException, InterruptedException {
          for (Text value : list) {
